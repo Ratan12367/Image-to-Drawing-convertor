@@ -1,27 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Image to Drawing Converter</title>
 
 <style>
 body{
-    font-family: Arial;
-    background: #f5f5f5;
-    text-align: center;
-    padding-top: 40px;
+  font-family: Arial;
+  background:#ececec;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  margin:0;
 }
+
 .box{
-    background: white;
-    width: 700px;
-    margin: auto;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 0 10px gray;
+  background:white;
+  padding:20px;
+  width:850px;
+  max-width:95%;
+  border-radius:10px;
+  box-shadow:0 0 15px rgba(0,0,0,0.2);
+  text-align:center;
 }
+
+.canvases{
+  display:flex;
+  gap:15px;
+  margin-top:15px;
+}
+
 canvas{
-    border: 1px solid #ccc;
-    margin: 10px;
+  border:1px solid #999;
+  width:100%;
+  max-width:400px;
+}
+
+button{
+  margin-top:15px;
+  padding:8px 15px;
+  font-size:15px;
+  cursor:pointer;
 }
 </style>
 </head>
@@ -29,61 +49,100 @@ canvas{
 <body>
 
 <div class="box">
-    <h2>🎨 Image to Drawing Converter</h2>
+  <h2>🎨 Image to Drawing Converter</h2>
+  <p>Upload an image to generate a smooth pencil sketch</p>
 
-    <input type="file" accept="image/*" onchange="loadImage(event)">
-    <br><br>
+  <input type="file" id="upload" accept="image/*">
 
-    <canvas id="original" width="300" height="300"></canvas>
-    <canvas id="sketch" width="300" height="300"></canvas>
+  <div class="canvases">
+    <div>
+      <p>Original</p>
+      <canvas id="original"></canvas>
+    </div>
+    <div>
+      <p>Sketch</p>
+      <canvas id="sketch"></canvas>
+    </div>
+  </div>
 
-    <p>Left: Original Image | Right: Drawing (Sketch)</p>
+  <button id="downloadBtn" disabled>⬇️ Download Sketch</button>
 </div>
 
 <script>
-let img = new Image();
+const upload = document.getElementById("upload");
+const originalCanvas = document.getElementById("original");
+const sketchCanvas = document.getElementById("sketch");
+const downloadBtn = document.getElementById("downloadBtn");
 
-function loadImage(event){
-    let file = event.target.files[0];
-    let reader = new FileReader();
+const octx = originalCanvas.getContext("2d");
+const sctx = sketchCanvas.getContext("2d");
 
-    reader.onload = function(e){
-        img.src = e.target.result;
-    }
-    reader.readAsDataURL(file);
-}
+/*
+  MAIN EVENT: when image is selected
+*/
+upload.addEventListener("change", function(){
+  const file = this.files[0];
+  if(!file) return;
 
-img.onload = function(){
-    let oCanvas = document.getElementById("original");
-    let sCanvas = document.getElementById("sketch");
+  const img = new Image();
 
-    let oCtx = oCanvas.getContext("2d");
-    let sCtx = sCanvas.getContext("2d");
+  img.onload = function(){
 
-    oCtx.clearRect(0,0,300,300);
-    sCtx.clearRect(0,0,300,300);
+    originalCanvas.width = sketchCanvas.width = img.width;
+    originalCanvas.height = sketchCanvas.height = img.height;
 
-    oCtx.drawImage(img,0,0,300,300);
+    octx.drawImage(img,0,0);
+    sctx.drawImage(img,0,0);
 
-    let imageData = oCtx.getImageData(0,0,300,300);
+    let imageData = sctx.getImageData(0,0,img.width,img.height);
     let data = imageData.data;
 
-    // Convert to grayscale
+    /*
+      STEP 1: GRAYSCALE
+    */
     for(let i=0;i<data.length;i+=4){
-        let avg = (data[i] + data[i+1] + data[i+2]) / 3;
-        data[i] = data[i+1] = data[i+2] = avg;
+      let gray = (data[i] + data[i+1] + data[i+2]) / 3;
+      data[i] = data[i+1] = data[i+2] = gray;
     }
 
-    // Edge effect (simple sketch)
-    for(let i=0;i<data.length;i+=4){
-        let diff = Math.abs(data[i] - data[i+4] || 0);
-        let val = diff > 15 ? 0 : 255;
-        data[i] = data[i+1] = data[i+2] = val;
+    /*
+      STEP 2: STRONG SMOOTHING (multiple blur passes)
+    */
+    for(let pass=0; pass<3; pass++){
+      for(let i=0;i<data.length-4;i+=4){
+        data[i]   = (data[i] + data[i+4]) / 2;
+        data[i+1] = (data[i+1] + data[i+5]) / 2;
+        data[i+2] = (data[i+2] + data[i+6]) / 2;
+      }
     }
 
-    sCtx.putImageData(imageData,0,0);
-}
+    /*
+      STEP 3: EDGE DETECTION (soft pencil lines)
+    */
+    for(let i=0;i<data.length;i+=4){
+      let diff = Math.abs(data[i] - (data[i+4] || data[i]));
+      let value = diff > 12 ? 0 : 255;   // low threshold = smoother sketch
+      data[i] = data[i+1] = data[i+2] = value;
+    }
+
+    sctx.putImageData(imageData,0,0);
+    downloadBtn.disabled = false;
+  };
+
+  img.src = URL.createObjectURL(file);
+});
+
+/*
+  DOWNLOAD SKETCH
+*/
+downloadBtn.addEventListener("click", function(){
+  const link = document.createElement("a");
+  link.download = "sketch.png";
+  link.href = sketchCanvas.toDataURL();
+  link.click();
+});
 </script>
 
 </body>
 </html>
+
