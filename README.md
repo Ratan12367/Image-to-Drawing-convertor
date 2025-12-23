@@ -41,7 +41,8 @@ This project demonstrates how images can be processed directly in the browser wi
 ---
 
 ## Live Demo
-https://YOUR-USERNAME.github.io/Image-to-Drawing-Converter/
+https://ratan12367.github.io/Image-to-Drawing-converter/
+
 
 ---
 
